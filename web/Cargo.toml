@@ -1,0 +1,10 @@
+[package]
+name = "routerbolt_web"
+version = "0.1.0"
+authors = ["Alex Roper <alex@aroper.net>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1"
+yew = "0"
+routerbolt = {path = "../routerbolt"}

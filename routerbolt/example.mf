@@ -1,0 +1,95 @@
+// Internal stack using jump table if specified size.
+stack_config size 1024
+
+// External stack using a memory bank or cell.
+// stack_config cell bank1
+
+call main
+end
+
+fn main {
+  let *stack_var
+  call recursive_fibonacci 6 -> *stack_var
+
+  print "fibonacci(6) = "
+  print *stack_var
+  print "\n"
+
+  print "fibonacci(9) = "
+  set num 9
+  callproc asm_recursive_fibonacci
+  print num
+  printflush message1
+
+  return
+}
+
+// The name of returned values is ignored and only cosmetic. We check only the
+// number matches all returns/call sites and that no name is duplicated.
+fn recursive_fibonacci *n -> *answer {
+  if equal *n 0 {
+    return 0
+  }
+
+  if equal *n 1 {
+    return *n
+  }
+
+  // Stack variables start with *, and all have function scope. They may be
+  // used in place of global variables in `op`, `call`, `return`, `set`, and `print`.
+  // Each access requires several instructions (~10 for internal stack `op add
+  // *myvar *myvar 1`) so global variables will be preferable when possible.
+  //
+  // The compiler makes essentially no attempt to optimize generated code (for
+  // example, computing the stack address again for every single access).
+  let *index
+  let *result
+
+  set *index 1
+  set *result 0
+  while lessThan *index 3 {
+    op sub this_is_global *n *index
+    call recursive_fibonacci this_is_global -> this_is_global
+    op add *result *result this_is_global
+    op add *index 1 *index
+
+  }
+
+  // Any path failing to return from a function is undefined behavior and we
+  // can't detect it currently:/
+  return *result
+}
+
+// More of an assembly style implementation. Input and output is global num.
+// This is more similar to the built-in language, but uses labels (ending with:) as
+// jump destinations instead of line numbers and can use a stack.
+asm_recursive_fibonacci:
+  jump asm_recursive_fibonacci__recursive_case greaterThan num 1
+  ret
+
+asm_recursive_fibonacci__recursive_case:
+  // `MF_acc` is a special variable used by the lower-level assembly style
+  // commands.
+  set MF_acc num
+  push
+
+  op sub num num 1
+  callproc asm_recursive_fibonacci
+  set MF_acc num
+  push
+
+  // Retrieve the value pushed above into `MF_acc`.
+  peek 1
+  op sub num MF_acc 2
+  callproc asm_recursive_fibonacci
+
+  // Retrieve the first call result. We could restructure this to only use a
+  // depth of 1, but this demonstrates peek (there is also poke to write to the
+  // stack).
+  pop
+  op add num num MF_acc
+
+  // Balance the stack.
+  pop
+
+  ret
